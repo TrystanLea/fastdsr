@@ -10,24 +10,31 @@ function fastdsr_controller() {
     // Default route format
     $route->format = 'json';
     
-    // $fastDSR_status = "ELEMENTS_ON";  // Not actionable?
-    $signals = array("NONE","ELEMENTS_OFF");
+    // Set DSR Status
+    // NONE:          no DSR action required
+    // ELEMENTS_OFF:  turn off storage heater elements
+    // ELEMENTS_ON:   turn on storage heater elements (not actionable?)
+    $signals = array("NONE","ELEMENTS_OFF","ELEMENTS_ON");
     $fastDSR_status = $signals[0];
     
     // Result can be passed back at the end or part way in the controller
     $result = false;
     
-    require "Modules/fastdsr/fastdsr_model.php";
-    $fastdsr = new FastDSR($mysqli);
+    // require "Modules/fastdsr/fastdsr_model.php";
+    // $fastdsr = new FastDSR($mysqli);
     
     // Write access API's and pages
     if ($session['write']) {
     
+        // Signal API:  /emoncms/fastdsr/signal
+        // result e.g:  {"signal":"NONE"}
         if ($route->action == "signal") {
             $route->format = 'json';
             return array("signal"=>$fastDSR_status);
         }
         
+        // Proof of dispatch API: /emoncms/fastdsr/confirm-dispatch?signal=NONE
+        // result: {"success":true} or error message
         if ($route->action == "confirm-dispatch" && isset($_GET['signal'])) {
             $route->format = 'json';
             
@@ -35,8 +42,10 @@ function fastdsr_controller() {
             $time = time();
             $signal = prop('signal');
             
+            // Verify that returned signal is a valid signal
             if (in_array($signal,$signals)) {
-            
+                // Insert or update entry in mysql database
+                // userid, time received and signal actioned
                 $mysqli->query("DELETE FROM fastdsr WHERE `userid`='$userid'");
                 $stmt = $mysqli->prepare("INSERT INTO fastdsr (`userid`,`time`,`signal`) VALUES (?,?,?)");
                 $stmt->bind_param("iis",$userid,$time,$signal);
@@ -53,6 +62,8 @@ function fastdsr_controller() {
             }
         }
     
+        // Load fastdsr html user interface
+        // Load current DSR signal and users last proof of dispatch
         if ($route->action == "view") {
             $route->format = 'html';
             
